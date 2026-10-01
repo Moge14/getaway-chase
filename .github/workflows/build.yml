@@ -1,0 +1,58 @@
+name: Build and release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag, e.g. 1.0"
+        required: true
+        default: "1.0"
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install pyinstaller pygame
+      - run: pyinstaller --windowed --name GetawayChase getaway_chase.py
+      - run: cd dist && zip -ry GetawayChase-mac-mseries.zip GetawayChase.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: dist/GetawayChase-mac-mseries.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install pyinstaller pygame
+      - run: pyinstaller --onefile --windowed --name GetawayChase getaway_chase.py
+      - run: Compress-Archive -Path dist/GetawayChase.exe -DestinationPath dist/GetawayChase-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/GetawayChase-windows.zip
+
+  release:
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+      - run: >
+          gh release create "${{ inputs.version }}" files/*
+          --repo "${{ github.repository }}"
+          --title "Getaway Chase ${{ inputs.version }}"
+          --notes "Windows and Apple Silicon (M-series) Mac builds. Still in development."
+        env:
+          GH_TOKEN: ${{ github.token }}
